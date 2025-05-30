@@ -51,6 +51,7 @@ ROS1Visualizer::ROS1Visualizer(std::shared_ptr<ros::NodeHandle> nh, std::shared_
   PRINT_DEBUG("Publishing: %s\n", pub_odomimu.getTopic().c_str());
   pub_pathimu = nh->advertise<nav_msgs::Path>("pathimu", 2);
   PRINT_DEBUG("Publishing: %s\n", pub_pathimu.getTopic().c_str());
+  cam0_pose_pub = nh->advertise<geometry_msgs::PoseStamped>("/cam0/pose", 10);
 
   // 3D points publishing
   pub_points_msckf = nh->advertise<sensor_msgs::PointCloud2>("points_msckf", 2);
@@ -242,6 +243,113 @@ void ROS1Visualizer::visualize() {
   // PRINT_DEBUG(BLUE "[TIME]: %.4f seconds for visualization\n" RESET, time_total);
 }
 
+// void ROS1Visualizer::visualize_odometry(double timestamp) {
+
+//   // Return if we have not inited
+//   if (!_app->initialized())
+//     return;
+
+//   // Get fast propagate state at the desired timestamp
+//   std::shared_ptr<State> state = _app->get_state();
+//   Eigen::Matrix<double, 13, 1> state_plus = Eigen::Matrix<double, 13, 1>::Zero();
+//   Eigen::Matrix<double, 12, 12> cov_plus = Eigen::Matrix<double, 12, 12>::Zero();
+//   if (!_app->get_propagator()->fast_state_propagate(state, timestamp, state_plus, cov_plus))
+//     return;
+
+//   //  // Get the simulated groundtruth so we can evaulate the error in respect to it
+//   //  // NOTE: we get the true time in the IMU clock frame
+//   //  if (_sim != nullptr) {
+//   //    Eigen::Matrix<double, 17, 1> state_gt;
+//   //    if (_sim->get_state(timestamp, state_gt)) {
+//   //      // Difference between positions
+//   //      double dx = state_plus(4, 0) - state_gt(5, 0);
+//   //      double dy = state_plus(5, 0) - state_gt(6, 0);
+//   //      double dz = state_plus(6, 0) - state_gt(7, 0);
+//   //      double err_pos = std::sqrt(dx * dx + dy * dy + dz * dz);
+//   //      // Quaternion error
+//   //      Eigen::Matrix<double, 4, 1> quat_gt, quat_st, quat_diff;
+//   //      quat_gt << state_gt(1, 0), state_gt(2, 0), state_gt(3, 0), state_gt(4, 0);
+//   //      quat_st << state_plus(0, 0), state_plus(1, 0), state_plus(2, 0), state_plus(3, 0);
+//   //      quat_diff = quat_multiply(quat_st, Inv(quat_gt));
+//   //      double err_ori = (180 / M_PI) * 2 * quat_diff.block(0, 0, 3, 1).norm();
+//   //      // Calculate NEES values
+//   //      Eigen::Vector3d quat_diff_vec = quat_diff.block(0, 0, 3, 1);
+//   //      Eigen::Vector3d cov_vec = cov_plus.block(0, 0, 3, 3).inverse() * 2 * quat_diff.block(0, 0, 3, 1);
+//   //      double ori_nees = 2 * quat_diff_vec.dot(cov_vec);
+//   //      Eigen::Vector3d errpos = state_plus.block(4, 0, 3, 1) - state_gt.block(5, 0, 3, 1);
+//   //      double pos_nees = errpos.transpose() * cov_plus.block(3, 3, 3, 3).inverse() * errpos;
+//   //      PRINT_INFO(REDPURPLE "error to gt => %.3f, %.3f (deg,m) | nees => %.1f, %.1f (ori,pos) \n" RESET, err_ori, err_pos, ori_nees,
+//   //                 pos_nees);
+//   //    }
+//   //  }
+
+//   // Publish our odometry message if requested
+//   if (pub_odomimu.getNumSubscribers() != 0) {
+
+//     nav_msgs::Odometry odomIinM;
+//     odomIinM.header.stamp = ros::Time(timestamp);
+//     odomIinM.header.frame_id = "global";
+
+//     // The POSE component (orientation and position)
+//     odomIinM.pose.pose.orientation.x = state_plus(0);
+//     odomIinM.pose.pose.orientation.y = state_plus(1);
+//     odomIinM.pose.pose.orientation.z = state_plus(2);
+//     odomIinM.pose.pose.orientation.w = state_plus(3);
+//     odomIinM.pose.pose.position.x = state_plus(4);
+//     odomIinM.pose.pose.position.y = state_plus(5);
+//     odomIinM.pose.pose.position.z = state_plus(6);
+
+//     // The TWIST component (angular and linear velocities)
+//     odomIinM.child_frame_id = "imu";
+//     odomIinM.twist.twist.linear.x = state_plus(7);   // vel in local frame
+//     odomIinM.twist.twist.linear.y = state_plus(8);   // vel in local frame
+//     odomIinM.twist.twist.linear.z = state_plus(9);   // vel in local frame
+//     odomIinM.twist.twist.angular.x = state_plus(10); // we do not estimate this...
+//     odomIinM.twist.twist.angular.y = state_plus(11); // we do not estimate this...
+//     odomIinM.twist.twist.angular.z = state_plus(12); // we do not estimate this...
+
+//     // Finally set the covariance in the message (in the order position then orientation as per ros convention)
+//     Eigen::Matrix<double, 12, 12> Phi = Eigen::Matrix<double, 12, 12>::Zero();
+//     Phi.block(0, 3, 3, 3).setIdentity();
+//     Phi.block(3, 0, 3, 3).setIdentity();
+//     Phi.block(6, 6, 6, 6).setIdentity();
+//     cov_plus = Phi * cov_plus * Phi.transpose();
+//     for (int r = 0; r < 6; r++) {
+//       for (int c = 0; c < 6; c++) {
+//         odomIinM.pose.covariance[6 * r + c] = cov_plus(r, c);
+//       }
+//     }
+//     for (int r = 0; r < 6; r++) {
+//       for (int c = 0; c < 6; c++) {
+//         odomIinM.twist.covariance[6 * r + c] = cov_plus(r + 6, c + 6);
+//       }
+//     }
+//     pub_odomimu.publish(odomIinM);
+//   }
+
+//   // Publish our transform on TF
+//   // NOTE: since we use JPL we have an implicit conversion to Hamilton when we publish
+//   // NOTE: a rotation from GtoI in JPL has the same xyzw as a ItoG Hamilton rotation
+//   auto odom_pose = std::make_shared<ov_type::PoseJPL>();
+//   odom_pose->set_value(state_plus.block(0, 0, 7, 1));
+//   tf::StampedTransform trans = ROSVisualizerHelper::get_stamped_transform_from_pose(odom_pose, false);
+//   trans.frame_id_ = "global";
+//   trans.child_frame_id_ = "imu";
+//   if (publish_global2imu_tf) {
+//     mTfBr->sendTransform(trans);
+//   }
+
+//   // Loop through each camera calibration and publish it
+//   for (const auto &calib : state->_calib_IMUtoCAM) {
+//     tf::StampedTransform trans_calib = ROSVisualizerHelper::get_stamped_transform_from_pose(calib.second, true);
+//     trans_calib.frame_id_ = "imu";
+//     trans_calib.child_frame_id_ = "cam" + std::to_string(calib.first);
+//     if (publish_calibration_tf) {
+//       mTfBr->sendTransform(trans_calib);
+//     }
+//   }
+// }
+
 void ROS1Visualizer::visualize_odometry(double timestamp) {
 
   // Return if we have not inited
@@ -254,33 +362,6 @@ void ROS1Visualizer::visualize_odometry(double timestamp) {
   Eigen::Matrix<double, 12, 12> cov_plus = Eigen::Matrix<double, 12, 12>::Zero();
   if (!_app->get_propagator()->fast_state_propagate(state, timestamp, state_plus, cov_plus))
     return;
-
-  //  // Get the simulated groundtruth so we can evaulate the error in respect to it
-  //  // NOTE: we get the true time in the IMU clock frame
-  //  if (_sim != nullptr) {
-  //    Eigen::Matrix<double, 17, 1> state_gt;
-  //    if (_sim->get_state(timestamp, state_gt)) {
-  //      // Difference between positions
-  //      double dx = state_plus(4, 0) - state_gt(5, 0);
-  //      double dy = state_plus(5, 0) - state_gt(6, 0);
-  //      double dz = state_plus(6, 0) - state_gt(7, 0);
-  //      double err_pos = std::sqrt(dx * dx + dy * dy + dz * dz);
-  //      // Quaternion error
-  //      Eigen::Matrix<double, 4, 1> quat_gt, quat_st, quat_diff;
-  //      quat_gt << state_gt(1, 0), state_gt(2, 0), state_gt(3, 0), state_gt(4, 0);
-  //      quat_st << state_plus(0, 0), state_plus(1, 0), state_plus(2, 0), state_plus(3, 0);
-  //      quat_diff = quat_multiply(quat_st, Inv(quat_gt));
-  //      double err_ori = (180 / M_PI) * 2 * quat_diff.block(0, 0, 3, 1).norm();
-  //      // Calculate NEES values
-  //      Eigen::Vector3d quat_diff_vec = quat_diff.block(0, 0, 3, 1);
-  //      Eigen::Vector3d cov_vec = cov_plus.block(0, 0, 3, 3).inverse() * 2 * quat_diff.block(0, 0, 3, 1);
-  //      double ori_nees = 2 * quat_diff_vec.dot(cov_vec);
-  //      Eigen::Vector3d errpos = state_plus.block(4, 0, 3, 1) - state_gt.block(5, 0, 3, 1);
-  //      double pos_nees = errpos.transpose() * cov_plus.block(3, 3, 3, 3).inverse() * errpos;
-  //      PRINT_INFO(REDPURPLE "error to gt => %.3f, %.3f (deg,m) | nees => %.1f, %.1f (ori,pos) \n" RESET, err_ori, err_pos, ori_nees,
-  //                 pos_nees);
-  //    }
-  //  }
 
   // Publish our odometry message if requested
   if (pub_odomimu.getNumSubscribers() != 0) {
@@ -298,16 +379,29 @@ void ROS1Visualizer::visualize_odometry(double timestamp) {
     odomIinM.pose.pose.position.y = state_plus(5);
     odomIinM.pose.pose.position.z = state_plus(6);
 
-    // The TWIST component (angular and linear velocities)
-    odomIinM.child_frame_id = "imu";
-    odomIinM.twist.twist.linear.x = state_plus(7);   // vel in local frame
-    odomIinM.twist.twist.linear.y = state_plus(8);   // vel in local frame
-    odomIinM.twist.twist.linear.z = state_plus(9);   // vel in local frame
-    odomIinM.twist.twist.angular.x = state_plus(10); // we do not estimate this...
-    odomIinM.twist.twist.angular.y = state_plus(11); // we do not estimate this...
-    odomIinM.twist.twist.angular.z = state_plus(12); // we do not estimate this...
+    // === 坐标转换：将线速度和角速度从IMU本体坐标系变换到世界坐标系 ===
+    // 1. 取IMU姿态（四元数）
+    Eigen::Quaterniond q_world_imu(
+        state_plus(3), state_plus(0), state_plus(1), state_plus(2)); // Hamilton: w, x, y, z
 
-    // Finally set the covariance in the message (in the order position then orientation as per ros convention)
+    // 2. 从state中取IMU本体坐标系下的线速度和角速度
+    Eigen::Vector3d vel_body(state_plus(7), state_plus(8), state_plus(9));
+    Eigen::Vector3d omega_body(state_plus(10), state_plus(11), state_plus(12));
+
+    // 3. 将它们变换到世界坐标系下（使用旋转四元数）
+    Eigen::Vector3d vel_world = q_world_imu * vel_body;
+    Eigen::Vector3d omega_world = q_world_imu * omega_body;
+
+    // === 设置 TWIST（世界坐标系下的速度） ===
+    odomIinM.child_frame_id = "imu";
+    odomIinM.twist.twist.linear.x = vel_world.x();
+    odomIinM.twist.twist.linear.y = vel_world.y();
+    odomIinM.twist.twist.linear.z = vel_world.z();
+    odomIinM.twist.twist.angular.x = omega_world.x();
+    odomIinM.twist.twist.angular.y = omega_world.y();
+    odomIinM.twist.twist.angular.z = omega_world.z();
+
+    // === 协方差处理（保留原始的旋转变换） ===
     Eigen::Matrix<double, 12, 12> Phi = Eigen::Matrix<double, 12, 12>::Zero();
     Phi.block(0, 3, 3, 3).setIdentity();
     Phi.block(3, 0, 3, 3).setIdentity();
@@ -323,12 +417,11 @@ void ROS1Visualizer::visualize_odometry(double timestamp) {
         odomIinM.twist.covariance[6 * r + c] = cov_plus(r + 6, c + 6);
       }
     }
+
     pub_odomimu.publish(odomIinM);
   }
 
   // Publish our transform on TF
-  // NOTE: since we use JPL we have an implicit conversion to Hamilton when we publish
-  // NOTE: a rotation from GtoI in JPL has the same xyzw as a ItoG Hamilton rotation
   auto odom_pose = std::make_shared<ov_type::PoseJPL>();
   odom_pose->set_value(state_plus.block(0, 0, 7, 1));
   tf::StampedTransform trans = ROSVisualizerHelper::get_stamped_transform_from_pose(odom_pose, false);
@@ -338,7 +431,7 @@ void ROS1Visualizer::visualize_odometry(double timestamp) {
     mTfBr->sendTransform(trans);
   }
 
-  // Loop through each camera calibration and publish it
+  // Publish each camera's calibration transform
   for (const auto &calib : state->_calib_IMUtoCAM) {
     tf::StampedTransform trans_calib = ROSVisualizerHelper::get_stamped_transform_from_pose(calib.second, true);
     trans_calib.frame_id_ = "imu";
@@ -347,7 +440,21 @@ void ROS1Visualizer::visualize_odometry(double timestamp) {
       mTfBr->sendTransform(trans_calib);
     }
   }
+
+  for (const auto &calib : state->_calib_IMUtoCAM) {
+      if (calib.first != 0)
+          continue;
+
+      geometry_msgs::PoseStamped pose_msg = ROSVisualizerHelper::get_pose_stamped_in_world(
+          calib.second,     // T_imu_cam
+          odom_pose,        // T_global_imu
+          true              // 如果你之前发布 TF 用的也是 flip_trans = true
+);
+      cam0_pose_pub.publish(pose_msg);
+  }
+
 }
+
 
 void ROS1Visualizer::visualize_final() {
 
