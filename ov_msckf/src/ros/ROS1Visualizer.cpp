@@ -20,6 +20,7 @@
  */
 
 #include "ROS1Visualizer.h"
+#include <tf/transform_listener.h>
 
 #include "core/VioManager.h"
 #include "ros/ROSVisualizerHelper.h"
@@ -442,15 +443,34 @@ void ROS1Visualizer::visualize_odometry(double timestamp) {
   }
 
   for (const auto &calib : state->_calib_IMUtoCAM) {
-      if (calib.first != 0)
-          continue;
+    if (calib.first != 0)
+        continue;
 
-      geometry_msgs::PoseStamped pose_msg = ROSVisualizerHelper::get_pose_stamped_in_world(
-          calib.second,     // T_imu_cam
-          odom_pose,        // T_global_imu
-          true              // 如果你之前发布 TF 用的也是 flip_trans = true
-);
-      cam0_pose_pub.publish(pose_msg);
+    try {
+        static tf::TransformListener tf_listener;
+        tf::StampedTransform tf_cam0_global;
+
+        tf_listener.waitForTransform("global", "cam0", ros::Time(0), ros::Duration(0.1));
+        tf_listener.lookupTransform("global", "cam0", ros::Time(0), tf_cam0_global);
+
+        geometry_msgs::PoseStamped cam0_in_global;
+        cam0_in_global.header.stamp = tf_cam0_global.stamp_;
+        cam0_in_global.header.frame_id = "global";
+
+        cam0_in_global.pose.position.x = tf_cam0_global.getOrigin().x();
+        cam0_in_global.pose.position.y = tf_cam0_global.getOrigin().y();
+        cam0_in_global.pose.position.z = tf_cam0_global.getOrigin().z();
+
+        cam0_in_global.pose.orientation.x = tf_cam0_global.getRotation().x();
+        cam0_in_global.pose.orientation.y = tf_cam0_global.getRotation().y();
+        cam0_in_global.pose.orientation.z = tf_cam0_global.getRotation().z();
+        cam0_in_global.pose.orientation.w = tf_cam0_global.getRotation().w();
+
+        cam0_pose_pub.publish(cam0_in_global);
+    }
+    catch (const std::exception &ex) {
+        ROS_WARN_STREAM("TF transform error: " << ex.what());
+    }
   }
 
 }
@@ -615,7 +635,7 @@ void ROS1Visualizer::callback_monocular(const sensor_msgs::ImageConstPtr &msg0, 
   // Get the image
   cv_bridge::CvImageConstPtr cv_ptr;
   try {
-    cv_ptr = cv_bridge::toCvShare(msg0, sensor_msgs::image_encodings::TYPE_32FC1);
+    cv_ptr = cv_bridge::toCvShare(msg0, sensor_msgs::image_encodings::MONO8);
   } catch (cv_bridge::Exception &e) {
     PRINT_ERROR("cv_bridge exception: %s", e.what());
     return;
@@ -655,7 +675,7 @@ void ROS1Visualizer::callback_stereo(const sensor_msgs::ImageConstPtr &msg0, con
   // Get the image
   cv_bridge::CvImageConstPtr cv_ptr0;
   try {
-    cv_ptr0 = cv_bridge::toCvShare(msg0, sensor_msgs::image_encodings::TYPE_32FC1);
+    cv_ptr0 = cv_bridge::toCvShare(msg0, sensor_msgs::image_encodings::MONO8);
   } catch (cv_bridge::Exception &e) {
     PRINT_ERROR("cv_bridge exception: %s\n", e.what());
     return;
@@ -664,7 +684,7 @@ void ROS1Visualizer::callback_stereo(const sensor_msgs::ImageConstPtr &msg0, con
   // Get the image
   cv_bridge::CvImageConstPtr cv_ptr1;
   try {
-    cv_ptr1 = cv_bridge::toCvShare(msg1, sensor_msgs::image_encodings::TYPE_32FC1);
+    cv_ptr1 = cv_bridge::toCvShare(msg1, sensor_msgs::image_encodings::MONO8);
   } catch (cv_bridge::Exception &e) {
     PRINT_ERROR("cv_bridge exception: %s\n", e.what());
     return;

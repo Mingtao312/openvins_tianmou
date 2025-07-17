@@ -87,57 +87,33 @@ tf::StampedTransform ROSVisualizerHelper::get_stamped_transform_from_pose(const 
   return trans;
 }
 
-geometry_msgs::PoseStamped ROSVisualizerHelper::get_pose_stamped_in_world(
-    const std::shared_ptr<ov_type::PoseJPL> &pose_imu_cam,
-    const std::shared_ptr<ov_type::PoseJPL> &pose_global_imu,
-    bool flip_trans) {
-
-    Eigen::Matrix4d T_imu_cam = Eigen::Matrix4d::Identity();
-    Eigen::Matrix3d R_ic = pose_imu_cam->Rot();
-    Eigen::Vector3d p_ic = pose_imu_cam->pos();
+geometry_msgs::PoseStamped ROSVisualizerHelper::get_pose_stamped_from_pose(const std::shared_ptr<ov_type::PoseJPL> &pose, bool flip_trans) {
+    // 提取姿态和位置
+    Eigen::Vector4d q_ItoC = pose->quat();       // 四元数 [x, y, z, w]
+    Eigen::Vector3d p_CinI = pose->pos();        // cam 在 imu 坐标系下的位置
 
     if (flip_trans) {
-        R_ic = R_ic.transpose().eval();
-        p_ic = -R_ic * p_ic;
+        // 计算 imu 在 cam 坐标系下的位置
+        p_CinI = -pose->Rot().transpose() * p_CinI;
     }
 
-    T_imu_cam.block<3,3>(0,0) = R_ic;
-    T_imu_cam.block<3,1>(0,3) = p_ic;
-
-    Eigen::Matrix4d T_global_imu = Eigen::Matrix4d::Identity();
-    T_global_imu.block<3,3>(0,0) = pose_global_imu->Rot();
-    T_global_imu.block<3,1>(0,3) = pose_global_imu->pos();
-
-    Eigen::Matrix4d T_global_cam = T_global_imu * T_imu_cam;
-
-    Eigen::Matrix3d R = T_global_cam.block<3,3>(0,0);
-    Eigen::Vector3d t = T_global_cam.block<3,1>(0,3);
-
-    // 取 Euler 角 ZYX，反转 yaw (euler(0) 是 yaw)
-    Eigen::Vector3d euler = R.eulerAngles(2, 1, 0);
-    euler(0) = -euler(0);
-
-    Eigen::AngleAxisd rollAngle(euler(2), Eigen::Vector3d::UnitX());
-    Eigen::AngleAxisd pitchAngle(euler(1), Eigen::Vector3d::UnitY());
-    Eigen::AngleAxisd yawAngle(euler(0), Eigen::Vector3d::UnitZ());
-
-    Eigen::Quaterniond q_new = yawAngle * pitchAngle * rollAngle;
-
+    // 构造 PoseStamped
     geometry_msgs::PoseStamped pose_msg;
     pose_msg.header.stamp = ros::Time::now();
-    pose_msg.header.frame_id = "global";
+    pose_msg.header.frame_id = "imu";  // 或其他你希望的坐标系名称
 
-    pose_msg.pose.position.x = t(0);
-    pose_msg.pose.position.y = t(1);
-    pose_msg.pose.position.z = t(2);
+    pose_msg.pose.position.x = p_CinI(0);
+    pose_msg.pose.position.y = p_CinI(1);
+    pose_msg.pose.position.z = p_CinI(2);
 
-    pose_msg.pose.orientation.x = q_new.x();
-    pose_msg.pose.orientation.y = q_new.y();
-    pose_msg.pose.orientation.z = q_new.z();
-    pose_msg.pose.orientation.w = q_new.w();
+    pose_msg.pose.orientation.x = q_ItoC(0);
+    pose_msg.pose.orientation.y = q_ItoC(1);
+    pose_msg.pose.orientation.z = q_ItoC(2);
+    pose_msg.pose.orientation.w = q_ItoC(3);
 
     return pose_msg;
 }
+
 
 #endif
 

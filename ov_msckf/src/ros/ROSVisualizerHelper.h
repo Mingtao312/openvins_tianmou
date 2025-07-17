@@ -72,10 +72,7 @@ public:
    * @return TF of our pose in global (e.g. q_ItoG, p_IinG)
    */
   static tf::StampedTransform get_stamped_transform_from_pose(const std::shared_ptr<ov_type::PoseJPL> &pose, bool flip_trans);
-  static geometry_msgs::PoseStamped get_pose_stamped_in_world(
-    const std::shared_ptr<ov_type::PoseJPL>& pose_imu_cam,
-    const std::shared_ptr<ov_type::PoseJPL>& pose_global_imu,
-    bool flip_trans = false);
+  static geometry_msgs::PoseStamped get_pose_stamped_from_pose(const std::shared_ptr<ov_type::PoseJPL> &pose, bool flip_trans);
 #endif
 
 #if ROS_AVAILABLE == 2

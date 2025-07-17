@@ -103,7 +103,7 @@ bool VioManager::try_to_initialize(const ov_core::CameraData &message) {
     // Try to initialize the system
     // We will wait for a jerk if we do not have the zero velocity update enabled
     // Otherwise we can initialize right away as the zero velocity will handle the stationary case
-    bool wait_for_jerk = (updaterZUPT == nullptr);
+    bool wait_for_jerk = false;
     bool success = initializer->initialize(timestamp, covariance, order, state->_imu, wait_for_jerk);
 
     // If we have initialized successfully we will set the covariance and state elements as needed
