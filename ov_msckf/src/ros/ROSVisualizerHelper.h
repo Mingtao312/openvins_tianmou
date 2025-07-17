@@ -35,6 +35,7 @@
 #include <sensor_msgs/point_cloud2_iterator.hpp>
 #include <tf2/transform_datatypes.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
+#include <geometry_msgs/PoseStamped.h>
 #endif
 
 namespace ov_type {
@@ -71,6 +72,7 @@ public:
    * @return TF of our pose in global (e.g. q_ItoG, p_IinG)
    */
   static tf::StampedTransform get_stamped_transform_from_pose(const std::shared_ptr<ov_type::PoseJPL> &pose, bool flip_trans);
+  static geometry_msgs::PoseStamped get_pose_stamped_from_pose(const std::shared_ptr<ov_type::PoseJPL> &pose, bool flip_trans);
 #endif
 
 #if ROS_AVAILABLE == 2

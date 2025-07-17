@@ -234,7 +234,7 @@ int main(int argc, char **argv) {
       // Get the image
       cv_bridge::CvImageConstPtr cv_ptr;
       try {
-        cv_ptr = cv_bridge::toCvShare(s0, sensor_msgs::image_encodings::TYPE_32FC1);
+        cv_ptr = cv_bridge::toCvShare(s0, sensor_msgs::image_encodings::MONO8);
       } catch (cv_bridge::Exception &e) {
         PRINT_ERROR(RED "cv_bridge exception: %s\n" RESET, e.what());
         continue;
@@ -252,7 +252,7 @@ int main(int argc, char **argv) {
       // Get the image
       cv_bridge::CvImageConstPtr cv_ptr;
       try {
-        cv_ptr = cv_bridge::toCvShare(s1, sensor_msgs::image_encodings::TYPE_32FC1);
+        cv_ptr = cv_bridge::toCvShare(s1, sensor_msgs::image_encodings::MONO8);
       } catch (cv_bridge::Exception &e) {
         PRINT_ERROR(RED "cv_bridge exception: %s\n" RESET, e.what());
         continue;

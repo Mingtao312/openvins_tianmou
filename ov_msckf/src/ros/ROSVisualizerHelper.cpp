@@ -25,7 +25,7 @@
 #include "sim/Simulator.h"
 #include "state/State.h"
 #include "state/StateHelper.h"
-
+#include <geometry_msgs/PoseStamped.h>
 #include "types/PoseJPL.h"
 
 using namespace ov_msckf;
@@ -86,6 +86,35 @@ tf::StampedTransform ROSVisualizerHelper::get_stamped_transform_from_pose(const 
   trans.setOrigin(orig);
   return trans;
 }
+
+geometry_msgs::PoseStamped ROSVisualizerHelper::get_pose_stamped_from_pose(const std::shared_ptr<ov_type::PoseJPL> &pose, bool flip_trans) {
+    // 提取姿态和位置
+    Eigen::Vector4d q_ItoC = pose->quat();       // 四元数 [x, y, z, w]
+    Eigen::Vector3d p_CinI = pose->pos();        // cam 在 imu 坐标系下的位置
+
+    if (flip_trans) {
+        // 计算 imu 在 cam 坐标系下的位置
+        p_CinI = -pose->Rot().transpose() * p_CinI;
+    }
+
+    // 构造 PoseStamped
+    geometry_msgs::PoseStamped pose_msg;
+    pose_msg.header.stamp = ros::Time::now();
+    pose_msg.header.frame_id = "imu";  // 或其他你希望的坐标系名称
+
+    pose_msg.pose.position.x = p_CinI(0);
+    pose_msg.pose.position.y = p_CinI(1);
+    pose_msg.pose.position.z = p_CinI(2);
+
+    pose_msg.pose.orientation.x = q_ItoC(0);
+    pose_msg.pose.orientation.y = q_ItoC(1);
+    pose_msg.pose.orientation.z = q_ItoC(2);
+    pose_msg.pose.orientation.w = q_ItoC(3);
+
+    return pose_msg;
+}
+
+
 #endif
 
 #if ROS_AVAILABLE == 2
